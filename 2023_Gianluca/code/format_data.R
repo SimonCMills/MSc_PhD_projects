@@ -1,12 +1,18 @@
 # Clean and format data for passing to flocker
 # Notes:
-#   - there's a 21:xx time needs fixing
-#   - A couple of visits are missing times
-#   - there are some point counts within the same hour.... worth checking on this
-#   - There are some points with only two visits
+
+#   - I think we need to set the mean of LiDAR for plantation points (but I 
+#   can't remember exactly how or why to do this)
+#   - One point (gc1l-2.9 wasn't visited on day 3 due to logistical constraints - so NA)
+#   - only a few points were collected for 4 days, so most are NA on day 4 
+#   - I filter data from Daniel to <100 m distance 
 
 # housekeeping ----
-library(flocker); library(dplyr)
+#install.packages("remotes")
+#remotes::install_github("jsocolar/flocker")
+library(flocker);
+library(dplyr)
+
 
 ## function to convert time to numeric (hours past 6) and make wide-format
 ## note: this is probably now redundant
@@ -17,15 +23,26 @@ library(flocker); library(dplyr)
 #     (as.numeric(hours) + as.numeric(minutes)/60) - 6
 # }
 
-# data ---- 
-df <- data.table::fread("inputs/Master2Birds_allPCs_Lidar_Traits_UndetectedSpp.csv") %>%
+# full PC data ---- 
+df_bird <- data.table::fread("inputs/MasterBirds_allPCs_Lidar_Traits_UndetectedSpp.csv") %>%
     as_tibble() %>%
     # convert date column to date format
     mutate(Date = as.Date(Date, format = "%d/%m/%Y")) 
 
+#plantation age information
 df_habitat <- data.table::fread("inputs/Plantation_Habitat_Structure.csv") %>%
     as_tibble() %>%
     mutate(point_id = interaction(Site, Point))
+
+#iucn status and forest dependency:low,medium,high (none reclassified to low)  (non-resident = 1; we get rid of these 6 spp)
+df_IUCN_FD <- data.table::fread("inputs/SppForForIntegrityIUCN.csv") %>% 
+    filter(nonResident == 0) %>%
+    as_tibble()
+
+# DOUBLECHECK THIS; filter out any of Daniel's data that is >100m away to enable matching across datesets 
+df <- df_IUCN_FD %>%  
+    left_join(., df_bird, by = "spp") %>%
+    filter(!(Sampler == "Daniel_Kong" & distance > 100))
 
 # fix dataframe ----
 ## (1) fix timing formatting
@@ -56,10 +73,10 @@ df2 <- df %>%
 #     View
 
 ## (2) fix duplicated rows in Simon Mitchell's bit of the dataset (corresponding 
-## to observations from different bands)
+## to observations of the same species and point in  different bands (e.g. diff birds))
 df_SM <- df2 %>%
     filter(Sampler == "SM") %>%
-    group_by(Site, point, spp) %>%
+    group_by(Site, point, spp,Date) %>%
     mutate(abundance = sum(abundance)) %>%
     slice(1)
 
@@ -80,6 +97,7 @@ date_info <- df3 %>%
     # there are some point counts within the same hour.... worth checking on this
     mutate(Day = rank(date_time))
 
+
 ## select just non-0 rows
 df_non0 <- df3 %>%
     filter(abundance > 0) %>%
@@ -99,7 +117,7 @@ df_full <- date_info %>%
     mutate(point_visited = 1) %>%
     left_join(df_backbone, .) %>%
     left_join(., 
-              df_non0[c("point_id", "Day", "spp", "abundance")]) %>%
+              df_non0[on =c("point_id", "Day", "spp","abundance")]) %>%
     mutate(abundance = ifelse(is.na(abundance) & point_visited==1, 0, abundance))
 
 df_full2 <- df3 %>%
@@ -128,7 +146,7 @@ df_time_wf <- left_join(df_full2, date_info) %>%
     reshape2::dcast(formula = point_id ~ Day, value.var = c("hps_sc"))  %>%
     rename(hps_sc1 = `1`, hps_sc2 = `2`, hps_sc3 = `3`, hps_sc4 = `4`) 
 
-## sort out covariates
+## sort out point covariates
 df_cov <- df3 %>%
     select(point_id, 
            site = Site,
@@ -141,43 +159,79 @@ df_cov <- df3 %>%
     # join in plantation age info
     left_join(., df_habitat[c("point_id", "Age")]) %>%
     rename(plantation_age = Age) 
+
+df_cov_sp <- df3 %>%
+    select(species = spp, dependency = forestDependency) %>%
+    unique
+
     
 ## full analysis dataframe 
 df_af <- left_join(df_det_wf, df_time_wf) %>%
     left_join(., df_cov) %>%
+    left_join(., df_cov_sp) %>%
     mutate(time_since_logging_sc = scale(time_since_logging), 
            ABC50_sc = scale(ABC50), 
-           plantation_age_sc = scale(plantation_age), 
-           time_since_logging_sc = ifelse(is.na(time_since_logging_sc), 
-                                          -99, 
-                                          time_since_logging_sc),
-           ABC50_sc = ifelse(is.na(ABC50_sc), 
-                             -99, 
-                             ABC50_sc),
-           plantation_age_sc = ifelse(is.na(plantation_age_sc), 
-                                      -99, 
-                                      plantation_age_sc)) %>%
+           plantation_age = scale(plantation_age)) %>%
     mutate(site_sp = interaction(site, species), 
            observer_sp = interaction(observer, species), 
            year_sp = interaction(year, species), 
            # habitat vars 
            primary = ifelse(habitat == "Primary", 1, -1),
-           twice_logged = ifelse(habitat == "Twice_logged", 1, -1), 
-           once_logged = ifelse(habitat == "Once_logged", 1, -1), 
-           logged_restored = ifelse(habitat == "Restored", 1, -1),
-           eucalyptus = ifelse(habitat == "Eucalyptus_pellita", 1, -1), 
-           albizia = ifelse(habitat == "Albizia_falcataria", 1, -1),
-           forestdep_high = ifelse(habitat == "high", 1, -1), 
-           forestdep_med = ifelse(habitat == "medium", 1, -1), 
-           forestdep_low = ifelse(habitat %in% c("low", "none"), 1, -1)
-           )
-  
-fd <- flocker::make_flocker_data(
-    obs = as.matrix(select(df_af, d1:d4)), 
-    unit_covs = select(df_af, 
-                       primary:albizia,
-                       year, year_sp, 
-                       species, 
-                       forestdep_high:forestdep_low,
-                       observer, observer_sp), 
-    list(time_of_day = select(df_af, hps_sc1:hps_sc4)))
+           twice_logged = ifelse(habitat == "Twice_logged", 1, 0), 
+           once_logged = ifelse(habitat == "Once_logged", 1, 0), 
+           logged_restored = ifelse(habitat == "Restored", 1, 0),
+           eucalyptus = ifelse(habitat == "Eucalyptus_pellita", 1, 0), 
+           albizia = ifelse(habitat == "Albizia_falcataria", 1, 0),
+           forestdep_high = ifelse(dependency == "high", 1, -1), 
+           forestdep_med = ifelse(dependency == "medium", 1, -1), 
+           forestdep_low = ifelse(dependency %in% c("low", "none"), 1, -1)
+    )
+
+
+#Note that GC1L-2.9 on day 3 wasn't sampled due to logistical constraints,
+# so put NA for abundance in d3
+# Note: this is redundant: it is already treated as NA in the above code
+# df_af <- df_af %>%
+#     mutate(d3 = ifelse(point_id =="GC1L-2.9" , NA, d3))
+
+#Last checks 
+#--------------------------------
+# #NOTE
+# colnames(df_af)
+# # calculate the number of NAs in each column
+# na_count <- colSums(is.na(df_af))
+# # get the names of columns with NAs
+# cols_with_na <- names(na_count[na_count > 0])
+# # print the names of columns with NAs
+# cols_with_na
+# #which columns don't have d3 info? 
+# d3NA <- df_af %>% filter(is.na(d3)) #only GC1L-2.9 - good	 
+# d4NA <- df_af %>% filter(is.na(d4)) #	Lots of points dont have d4 data, as 
+# expected (most points were only sampled 3 times) 
+# hps_sc3NA <- df_af%>% filter(is.na(hps_sc3)) %>% select(point_id) %>% unique() 
+# Day 3; GC1L-2.9 is missing time data, good
+# hps_sc4NA <- df_af%>% filter(is.na(hps_sc4)) %>% select(point_id) %>% unique() 
+# Lots of points dont have d4 time; as expected
+#--------------------------------
+
+#EXPORT spp names to get forest integrity data for 
+#spp <- as.data.frame(df_af$species %>% unique) %>% rename("Species" = 1)
+#write.csv(spp, "SppForForIntegrity.csv")
+
+fd <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)), 
+                                 unit_covs = select(df_af, 
+                                                    point_id,
+                                                    habitat,
+                                                    primary:albizia,
+                                                    #year, year_sp, 
+                                                    site, site_sp,
+                                                    species, 
+                                                    dependency,
+                                                    forestdep_high:forestdep_low,
+                                                    observer, observer_sp), 
+                                 list(time_of_day = select(df_af, hps_sc1:hps_sc4)))
+
+
+saveRDS(fd, "fd_15-05-23.rds")
+
+
