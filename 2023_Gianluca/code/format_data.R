@@ -10,8 +10,7 @@
 # housekeeping ----
 #install.packages("remotes")
 #remotes::install_github("jsocolar/flocker")
-library(flocker);
-library(dplyr)
+library(flocker); library(dplyr)
 
 
 ## function to convert time to numeric (hours past 6) and make wide-format
@@ -247,4 +246,21 @@ fd <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)),
 
 saveRDS(fd, "fd_15-05-23.rds")
 
+
+fd_zi <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)), 
+                                    unit_covs = select(df_af, 
+                                                       point_id,
+                                                       habitat,
+                                                       primary:albizia,
+                                                       time_since_logging_sc,
+                                                       ABC50_sc, 
+                                                       plantation_age_sc,
+                                                       year, year_sp, 
+                                                       site, site_sp,
+                                                       species, 
+                                                       dependency,
+                                                       forestdep_high:forestdep_low,
+                                                       observer, observer_sp))
+
+saveRDS(fd_zi, "fd_no_visit_cov_15-05-23.rds")
 
