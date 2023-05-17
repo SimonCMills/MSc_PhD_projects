@@ -361,4 +361,4 @@ fit <- flock(f_occ = ~ 1 + # primary & high fdep is intercept
              save_warmup = T,
 )
 
-prior_summary(fit)
+saveRDS(fit, "outputs/initial_fit.rds")
