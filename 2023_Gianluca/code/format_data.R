@@ -171,7 +171,6 @@ df_af <- left_join(df_det_wf, df_time_wf) %>%
     mutate(time_since_logging_sc = scale(time_since_logging), 
            ABC50_sc = scale(ABC50), 
            plantation_age_sc = scale(plantation_age), 
-           plantation_age_sc = scale(plantation_age), 
            time_since_logging_sc = ifelse(is.na(time_since_logging_sc), 
                                           0, 
                                           time_since_logging_sc),
@@ -180,17 +179,20 @@ df_af <- left_join(df_det_wf, df_time_wf) %>%
                              ABC50_sc),
            plantation_age_sc = ifelse(is.na(plantation_age_sc), 
                                       0, 
-                                      plantation_age_sc)) %>%
+                                      plantation_age_sc), 
+           time_since_logging = ifelse(is.na(time_since_logging), -99, time_since_logging),
+           ABC50 = ifelse(is.na(ABC50), -99, ABC50),
+           plantation_age = ifelse(is.na(plantation_age), -99, plantation_age)) %>%
     mutate(site_sp = interaction(site, species), 
            observer_sp = interaction(observer, species), 
            year_sp = interaction(year, species), 
            # habitat vars 
            primary = ifelse(habitat == "Primary", 1, -1),
-           twice_logged = ifelse(habitat == "Twice_logged", 1, 0), 
-           once_logged = ifelse(habitat == "Once_logged", 1, 0), 
-           logged_restored = ifelse(habitat == "Restored", 1, 0),
-           eucalyptus = ifelse(habitat == "Eucalyptus_pellita", 1, 0), 
-           albizia = ifelse(habitat == "Albizia_falcataria", 1, 0),
+           twice_logged = ifelse(habitat == "Twice_logged", 1, -1), 
+           once_logged = ifelse(habitat == "Once_logged", 1, -1), 
+           logged_restored = ifelse(habitat == "Restored", 1, -1),
+           eucalyptus = ifelse(habitat == "Eucalyptus_pellita", 1, -1), 
+           albizia = ifelse(habitat == "Albizia_falcataria", 1, -1),
            forestdep_high = ifelse(dependency == "high", 1, -1), 
            forestdep_med = ifelse(dependency == "medium", 1, -1), 
            forestdep_low = ifelse(dependency %in% c("low", "none"), 1, -1)
@@ -204,7 +206,7 @@ df_af <- left_join(df_det_wf, df_time_wf) %>%
 #     mutate(d3 = ifelse(point_id =="GC1L-2.9" , NA, d3))
 
 #Last checks 
-#--------------------------------
+###
 # #NOTE
 # colnames(df_af)
 # # calculate the number of NAs in each column
@@ -221,7 +223,7 @@ df_af <- left_join(df_det_wf, df_time_wf) %>%
 # Day 3; GC1L-2.9 is missing time data, good
 # hps_sc4NA <- df_af%>% filter(is.na(hps_sc4)) %>% select(point_id) %>% unique() 
 # Lots of points dont have d4 time; as expected
-#--------------------------------
+###
 
 #EXPORT spp names to get forest integrity data for 
 #spp <- as.data.frame(df_af$species %>% unique) %>% rename("Species" = 1)
@@ -232,9 +234,9 @@ fd <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)),
                                                     point_id,
                                                     habitat,
                                                     primary:albizia,
-                                                    time_since_logging_sc,
-                                                    ABC50_sc, 
-                                                    plantation_age_sc,
+                                                    time_since_logging, time_since_logging_sc,
+                                                    ABC50, ABC50_sc, 
+                                                    plantation_age, plantation_age_sc,
                                                     year, year_sp, 
                                                     site, site_sp,
                                                     species, 
@@ -244,7 +246,7 @@ fd <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)),
                                  list(time_of_day = select(df_af, hps_sc1:hps_sc4)))
 
 
-saveRDS(fd, "fd_15-05-23.rds")
+saveRDS(fd, "fd_22-05-23.rds")
 
 
 fd_zi <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)), 
@@ -252,9 +254,9 @@ fd_zi <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)),
                                                        point_id,
                                                        habitat,
                                                        primary:albizia,
-                                                       time_since_logging_sc,
-                                                       ABC50_sc, 
-                                                       plantation_age_sc,
+                                                       time_since_logging, time_since_logging_sc,
+                                                       ABC50, ABC50_sc, 
+                                                       plantation_age, plantation_age_sc,
                                                        year, year_sp, 
                                                        site, site_sp,
                                                        species, 
@@ -262,5 +264,5 @@ fd_zi <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)),
                                                        forestdep_high:forestdep_low,
                                                        observer, observer_sp))
 
-saveRDS(fd_zi, "fd_no_visit_cov_15-05-23.rds")
+saveRDS(fd_zi, "fd_no_visit_cov_22-05-23.rds")
 
