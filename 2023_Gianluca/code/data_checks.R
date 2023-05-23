@@ -63,6 +63,36 @@ fd_data %>%
     geom_boxplot() + 
     facet_wrap(~habitat)
 
+
+# sumQ covariation across habitat ----
+df_sumQ <- fd_data %>%
+    group_by(species, habitat, dependency) %>%
+    summarise(sumQ = sum(Q)) 
+
+df_sumQ_wf <- reshape2::dcast(df_sumQ, species ~ habitat, value.var = "sumQ") %>%
+    left_join(., df_sumQ %>% select(species, dependency) %>% unique)
+
+df_sumQ_wf %>%
+    ggplot(aes(primary, restored, col=dependency)) +
+    geom_point() +
+    facet_wrap(~dependency)
+
+df_sumQ_wf %>%
+    ggplot(aes(primary, eucalyptus, col=dependency)) +
+    geom_point() +
+    facet_wrap(~dependency)
+
+df_sumQ_wf %>%
+    ggplot(aes(primary, albizia, col=dependency)) +
+    geom_point() +
+    facet_wrap(~dependency)
+
+df_sumQ_wf %>%
+    ggplot(aes(primary, once_logged, col=dependency)) +
+    geom_point() +
+    facet_wrap(~dependency)
+
+
 # plot ABC50, age, and time since logging ----
 fd_data %>%
     select(point_id, habitat, ABC50) %>%
@@ -143,3 +173,11 @@ fd_data %>%
     unique %>%
     ggplot(aes(habitat, time_since_logging_sc)) + 
     geom_jitter(height = 0, width = .3)
+
+###
+df_full2 %>%
+    mutate(det = ifelse(abundance == 0, 0, 1)) %>%
+    group_by(Site, spp) %>%
+    summarise(abundance = (mean(abundance)), det = mean(det)) %>%
+    ggplot(aes(det, abundance)) + 
+    geom_point() + scale_y_continuous(trans="log")
