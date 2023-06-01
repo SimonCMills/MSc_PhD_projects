@@ -4,11 +4,10 @@ library(flocker); library(dplyr); library(brms)
 fit <- readRDS("outputs/fit_v2.rds")
 fd <- readRDS("fd_22-05-23.rds")
 
-
-
+# plot chains
+plot(fit)
 
 # the combined effect is: 
-
 pred_data <- fd$data %>%
     select(habitat, species, 
            dependency, forestdep_high, forestdep_med, forestdep_low, 
@@ -28,12 +27,9 @@ fits <- fitted_flocker(fit, "occupancy", new_data = pred_data,
                        re_formula = NA, ndraws = 200)
 
 
-fits_sp <- fitted_flocker(fit, "occupancy", new_data = pred_data, 
+fits_sp <- fitted_flocker(fit, "occupancy", new_data = pred_data, #summarise = F,
                        re_formula = ~(0 + primary + twice_logged + once_logged + logged_restored + 
                                           eucalyptus + albizia|g1|species), ndraws = 200)
-
-
-
 
 bind_cols(pred_data, fits) %>%
     mutate(dependency = ifelse(dependency == "none", "low", dependency), 
@@ -61,6 +57,13 @@ bind_cols(pred_data, fits) %>%
           axis.text = element_text(colour = "black"),
           axis.text.x = element_text(angle=45, hjust=1.05, colour="black")) +
     labs(y = "Occupancy", x="")
+
 fig_scale <- 1.5
 ggsave("figures/occupancy_estimates.png", units="mm", 
        height=120*fig_scale, width=115*fig_scale)
+
+# 
+df_save <- bind_cols(pred_data[,c("habitat", "species", "dependency")], fits_sp) %>%
+    as_tibble
+
+saveRDS(df_save, "outputs/df_save.rds")
