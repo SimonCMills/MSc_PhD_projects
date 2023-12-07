@@ -6,16 +6,16 @@
 # packages
 library(flocker); library(brms); library(dplyr); library(ggplot2)
 
-fit <- readRDS("outputs/fit_v3.rds")
-fd <- readRDS("fd_22-05-23.rds")
+fit <- readRDS("../../Rainforest Builder Dropbox/Simon Mills/Gian/fit.rds")
+fd <- readRDS("fd_01-10-23.rds")
 
 # fix attributes to work with updated flocker version
-attr(fit, "data_type") <- "single"
-attr(fit, "fp") <- FALSE
-attr(fit, "lik_type") <- NULL
+# attr(fit, "data_type") <- "single"
+# attr(fit, "fp") <- FALSE
+# attr(fit, "lik_type") <- NULL
 
 # get fd data
-fd_data <- fd$data[1:fd$data$n_unit[1],]
+fd_data <- fd$data[1:fd$data$ff_n_unit[1],]
 
 # check scaling coefs are correct ----
 # plantation age
@@ -48,7 +48,7 @@ time_since_logging_scale <- attr(time_since_logging_sc, "scaled:scale")
 plantation_age_seq <- tibble(plantation_age = 0:13) %>%
     mutate(plantation_age_sc = (plantation_age - plant_age_cent)/plant_age_scale)
 
-time_since_logging_seq <- tibble(time_since_logging = round(seq(19, 62, len=14), 1)) %>%
+time_since_logging_seq <- tibble(time_since_logging = 19:62) %>%
     mutate(time_since_logging_sc = 
                (time_since_logging - time_since_logging_cent)/time_since_logging_scale)
 
@@ -66,27 +66,26 @@ pred_data <- fd_data %>%
            year = fd$data$year[1], 
            year_sp = fd$data$year_sp[1], 
            site = fd$data$site[1],
-           site_sp = fd$data$site_sp[1], 
-           ff_y = 0, ff_n_unit = fd$data$n_unit[1], ff_n_rep = 4, ff_Q = 1, 
-           ff_rep_index1 = 1, ff_rep_index2 = 1, ff_rep_index3 = 1, ff_rep_index4 = 1,
+           site_sp = fd$data$site_sp[1])
+           #ff_y = 0, ff_n_unit = fd$data$n_unit[1], ff_n_rep = 4, ff_Q = 1, 
+           #ff_rep_index1 = 1, ff_rep_index2 = 1, ff_rep_index3 = 1, ff_rep_index4 = 1,
            y = 0,
-           n_unit = fd$data$n_unit[1], n_rep = 4,  Q = 0, 
+           #n_unit = fd$data$n_unit[1], n_rep = 4,  Q = 0, 
            rep_index1 = 1, rep_index2 = 1, rep_index3 = 1,
            rep_index4 = 1)
 
-unique(pred_data$habitat)
 
 pred_time_since_logging <- pred_data %>%
     filter(habitat %in% c("Once_logged", "Restored")) %>%
-    replicate(14, ., FALSE) %>%
+    replicate(nrow(time_since_logging_seq), ., FALSE) %>%
     bind_rows(., .id = "id") %>%
-    mutate(time_since_logging = round(seq(19, 62, len=14), 1)[as.integer(id)]) %>%
+    mutate(time_since_logging = (19:62)[as.integer(id)]) %>%
     left_join(., time_since_logging_seq) %>%
     mutate(plantation_age = NA, plantation_age_sc = 0)
 
 pred_plantation_age <- pred_data %>%
     filter(habitat %in% c("Eucalyptus_pellita", "Albizia_falcataria")) %>%
-    replicate(14, ., FALSE) %>%
+    replicate(nrow(plantation_age_seq), ., FALSE) %>%
     bind_rows(., .id = "id") %>%
     mutate(plantation_age = (0:13)[as.integer(id)]) %>%
     left_join(., plantation_age_seq) %>%
@@ -105,20 +104,20 @@ pred_data_full <- pred_data %>%
 preds <- fitted_flocker(fit, components = "occ", new_data = pred_data_full, 
                         draw_ids = seq(1, 4000, 8))
 
-pdat_red <- pred_data_full %>%
-    select(-(ff_y:rep_index4))
+# pdat_red <- pred_data_full %>%
+#     select(-(ff_y:rep_index4))
 
 
 out <- as_tibble(preds$linpred_occ) %>%
     setNames(paste0("draw_", 1:500)) %>%
-    bind_cols(pdat_red, .)
+    bind_cols(pred_data_full, .)
 
 out_summ <- tibble(mid = matrixStats::rowMeans2(preds$linpred_occ), 
                    lwr = matrixStats::rowQuantiles(preds$linpred_occ, probs = .1),
                    upr = matrixStats::rowQuantiles(preds$linpred_occ, probs = .9)) %>%
-    bind_cols(pdat_red, .)
+    bind_cols(pred_data_full, .)
     
-
+library(ggplot2)
 out_summ %>%
     mutate(dependency_label = case_when(dependency == "none" ~ "low", 
                                         TRUE ~ dependency), 
@@ -137,7 +136,7 @@ out_summ %>%
     mutate(dependency_label = case_when(dependency == "none" ~ "low", 
                                         TRUE ~ dependency), 
            dependency_label = factor(dependency_label, levels = c("high", "medium", "low"))) %>%
-    filter(habitat %in% c("Once_logged", "Restored")) %>%
+    filter(habitat %in% c("Once_logged", "Restored")) %>% 
     ggplot(aes(time_since_logging, mid, group=species)) +
     geom_line() +
     facet_grid(habitat~dependency_label) +

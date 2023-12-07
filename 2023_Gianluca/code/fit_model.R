@@ -1,6 +1,8 @@
 library(brms); library(flocker); library(dplyr)
-
-fd <- readRDS("fd_22-05-23.rds")
+# devtools::install_github("jsocolar/flocker")
+# cmdstan path
+# C:/Users/smills2/.cmdstan/cmdstan-2.32.2
+fd <- readRDS("fd_01-10-23.rds")
 
 prior_specification <- c(
     # intercept terms (i.e. average species )
@@ -55,7 +57,9 @@ fit <- flock(f_occ = ~ 0 + # don't fit intercept (as -1:1 coded)
                  (1|site) + (1|site_sp) + 
                  # species random intercepts for each habitat type
                  (0 + primary + twice_logged + once_logged + logged_restored + 
-                      eucalyptus + albizia|g1|species) + 
+                      eucalyptus + albizia + twice_logged:time_since_logging_sc + 
+                      once_logged:time_since_logging_sc + eucalyptus:plantation_age_sc +
+                      albizia:plantation_age_sc|species) + 
                  # bird-life forest dependency 
                  # dependency:habitat interactions
                  forestdep_high:primary + 
@@ -95,14 +99,15 @@ fit <- flock(f_occ = ~ 0 + # don't fit intercept (as -1:1 coded)
                  time_of_day + 
                  observer + 
                  (1|observer_sp) + 
-                 (1 + time_of_day|g1|species),
-             prior = prior_specification,
+                 (1 + time_of_day|species),
+             prior = prior_specification, 
              flocker_data = fd, 
              sample_prior = "yes",
              save_warmup = TRUE,
              chains = 4, cores = 4,
-             output_dir = "C:/Users/smills2/Desktop/stan_out",
-             output_basename = "Borneo_v2",
+             file = "../../Rainforest Builder Dropbox/Simon Mills/Gian/fit.rds",
+             output_dir = "../../Rainforest Builder Dropbox/Simon Mills/Gian/",
+             output_basename = "Borneo_v4",
              backend = "cmdstanr"
 )
 
@@ -110,4 +115,6 @@ fit <- flock(f_occ = ~ 0 + # don't fit intercept (as -1:1 coded)
 # note: this failed on first run because two chains stopped running due to 
 # memory overflow (due to other processes on machine). Currently rebuild the 
 # object from the two completed chains
-saveRDS(fit, "outputs/fit_v2.rds")
+saveRDS(fit, "../../Rainforest Builder Dropbox/Simon Mills/Gian/fit_backup.rds")
+summary(fit)
+summ <- summary(fit)

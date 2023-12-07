@@ -1,7 +1,7 @@
 # Unpacking outputs
 library(flocker); library(dplyr); library(brms)
 
-fit <- readRDS("outputs/fit_v2.rds")
+fit <- readRDS("outputs/fit_v3.rds")
 fd <- readRDS("fd_22-05-23.rds")
 
 # plot chains

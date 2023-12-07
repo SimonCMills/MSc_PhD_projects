@@ -160,7 +160,8 @@ df_cov <- df3 %>%
     rename(plantation_age = Age) 
 
 df_cov_sp <- df3 %>%
-    select(species = spp, dependency = forestDependency) %>%
+    select(species = spp, dependency = forestDependency, 
+           family = Family1, scientific_name = LatinName) %>%
     unique
 
     
@@ -198,6 +199,8 @@ df_af <- left_join(df_det_wf, df_time_wf) %>%
            forestdep_low = ifelse(dependency %in% c("low", "none"), 1, -1)
     )
 
+df_af
+
 
 #Note that GC1L-2.9 on day 3 wasn't sampled due to logistical constraints,
 # so put NA for abundance in d3
@@ -231,6 +234,7 @@ df_af <- left_join(df_det_wf, df_time_wf) %>%
 
 fd <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)), 
                                  unit_covs = select(df_af, 
+                                                    species,
                                                     point_id,
                                                     habitat,
                                                     primary:albizia,
@@ -239,15 +243,19 @@ fd <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)),
                                                     plantation_age, plantation_age_sc,
                                                     year, year_sp, 
                                                     site, site_sp,
-                                                    species, 
+                                                    # family, 
+                                                    # scientific_name,
                                                     dependency,
                                                     forestdep_high:forestdep_low,
                                                     observer, observer_sp), 
                                  list(time_of_day = select(df_af, hps_sc1:hps_sc4)))
 
 
-saveRDS(fd, "fd_22-05-23.rds")
+saveRDS(fd, "fd_01-10-23.rds")
 
+temp <- df3 %>%
+    select(family = Family1, species = spp) %>%
+    unique
 
 fd_zi <- flocker::make_flocker_data(obs = as.matrix(select(df_af, d1:d4)), 
                                     unit_covs = select(df_af, 
